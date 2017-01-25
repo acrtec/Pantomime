@@ -9,6 +9,7 @@ public class MediaPlaylist {
     var masterPlaylist: MasterPlaylist?
 
     public var programId: Int = 0
+    public var groupId: String?
     public var bandwidth: Int = 0
     public var path: String?
     public var version: Int?

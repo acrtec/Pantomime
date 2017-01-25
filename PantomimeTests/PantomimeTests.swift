@@ -56,7 +56,7 @@ class PantomimeTests: XCTestCase {
                     XCTAssertNotNil(playlist.path)
                 })
 
-        XCTAssert(masterPlaylist.playlists.count == 4)
+        XCTAssert(masterPlaylist.playlists.count == 10)
     }
 
     /**

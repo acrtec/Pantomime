@@ -35,7 +35,8 @@ public class ManifestBuilder {
                 if line.hasPrefix("#EXTM3U") {
                     // Ok Do nothing
 
-                } else if line.hasPrefix("#EXT-X-STREAM-INF") {
+                }
+                else if line.hasPrefix("#EXT-X-STREAM-INF") {
                     // #EXT-X-STREAM-INF:PROGRAM-ID=1, BANDWIDTH=200000
                     currentMediaPlaylist = MediaPlaylist()
                     if let currentMediaPlaylistExist = currentMediaPlaylist {
@@ -59,7 +60,8 @@ public class ManifestBuilder {
                     mediaPlaylist.language = try? line.replace("(.*)LANGUAGE=\"(.*?)\"(.*)", replacement: "$2")
                     mediaPlaylist.type = try? line.replace("(.*)TYPE=(.*?),(.*)", replacement: "$2")
                     mediaPlaylist.path = try? line.replace("(.*)URI=\"(.*?)\"(.*)", replacement: "$2")
-                    
+                    mediaPlaylist.groupId = try? line.replace("(.*)GROUP-ID=\"(.*?)\"(.*)", replacement: "$2")
+
                     masterPlaylist.addPlaylist(mediaPlaylist)
                     onMediaPlaylist?(playlist: mediaPlaylist)
                 }
