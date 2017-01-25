@@ -37,30 +37,51 @@ public class ManifestBuilder {
 
                 }
                 else if line.hasPrefix("#EXT-X-STREAM-INF") {
+                    
+                    let streamInfo = line.stringByReplacingOccurrencesOfString("#EXT-X-STREAM-INF:", withString: "")
+                    let scannedParameters:[String:String] = scanParameters(fromString:streamInfo, unescapeQuotes:true)
+                    
                     // #EXT-X-STREAM-INF:PROGRAM-ID=1, BANDWIDTH=200000
                     currentMediaPlaylist = MediaPlaylist()
                     if let currentMediaPlaylistExist = currentMediaPlaylist {
-                        do {
-                            let programIdString = try line.replace("(.*)PROGRAM-ID=(\\d+)(.*)", replacement: "$2")
-                            currentMediaPlaylistExist.programId = Int(programIdString)!
-                        } catch {
-                            print("Failed to parse program-id on master playlist. Line = \(line)")
+                        if let programIdString = scannedParameters["PROGRAM-ID"],
+                            let programId = Int(programIdString) {
+                            currentMediaPlaylistExist.programId = programId
                         }
-                        do {
-                            let bandwidthString = try line.replace("(.*)BANDWIDTH=(\\d+)(.*)", replacement: "$2")
-                            currentMediaPlaylistExist.bandwidth = Int(bandwidthString)!
-                        } catch {
-                            print("Failed to parse bandwidth on master playlist. Line = \(line)")
+                        
+                        if let bandwidthString = scannedParameters["BANDWIDTH"],
+                            let bandwidth = Int(bandwidthString) {
+                            currentMediaPlaylistExist.bandwidth = bandwidth
+                        }
+                        
+                        if let audioTrackString = scannedParameters["AUDIO"] {
+                            currentMediaPlaylistExist.audioTrackId = audioTrackString
                         }
                     }
                 } else if line.hasPrefix("#EXT-X-MEDIA") {
+                    
+                    let streamInfo = line.stringByReplacingOccurrencesOfString("#EXT-X-MEDIA:", withString: "")
+                    let scannedParameters:[String:String] = scanParameters(fromString:streamInfo, unescapeQuotes:true)
+                    
                     let mediaPlaylist = MediaPlaylist()
                     // #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",\
                     // DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,LANGUAGE="eng",URI="..."
-                    mediaPlaylist.language = try? line.replace("(.*)LANGUAGE=\"(.*?)\"(.*)", replacement: "$2")
-                    mediaPlaylist.type = try? line.replace("(.*)TYPE=(.*?),(.*)", replacement: "$2")
-                    mediaPlaylist.path = try? line.replace("(.*)URI=\"(.*?)\"(.*)", replacement: "$2")
-                    mediaPlaylist.groupId = try? line.replace("(.*)GROUP-ID=\"(.*?)\"(.*)", replacement: "$2")
+                    
+                    if let languageId = scannedParameters["LANGUAGE"] {
+                        mediaPlaylist.language = languageId
+                    }
+                    
+                    if let playListType = scannedParameters["TYPE"] {
+                        mediaPlaylist.type = playListType
+                    }
+                    
+                    if let uri = scannedParameters["URI"] {
+                        mediaPlaylist.path = uri
+                    }
+
+                    if let groupId = scannedParameters["GROUP-ID"] {
+                        mediaPlaylist.groupId = groupId
+                    }
 
                     masterPlaylist.addPlaylist(mediaPlaylist)
                     onMediaPlaylist?(playlist: mediaPlaylist)
@@ -83,6 +104,51 @@ public class ManifestBuilder {
         return masterPlaylist
     }
 
+    private func scanParameters(fromString string:String, unescapeQuotes escape:Bool = false) -> [String:String] {
+
+        let scanner = NSScanner(string: string)
+        var parameters: [String] = []
+        
+        while scanner.atEnd == false {
+            var scannedString: NSString?
+            var tmpScanString: NSString?
+            scanner.scanUpToString(",", intoString: &scannedString)
+            
+            let count = scannedString?.countInstances(of: "\"") ?? 0
+            let isInQuotes = (count % 2 != 0)
+            
+            if isInQuotes {
+                
+                // store the scanned output and increment the scan pointer...
+                scanner.scanLocation = scanner.scanLocation + 1
+                tmpScanString = scannedString
+                
+                // scan again to the next ,
+                scanner.scanUpToString(",", intoString: &scannedString)
+                
+                let param = String(format: "%@, %@", tmpScanString ?? "", scannedString ?? "")
+                parameters.append(escape ? param.unescapeQuotes : param)
+            }
+            else {
+                if let param = scannedString as? String {
+                    parameters.append(escape ? param.unescapeQuotes : param)
+                }
+            }
+            if scanner.scanLocation < string.characters.count - 1 {
+                scanner.scanLocation = scanner.scanLocation + 1
+            }
+        }
+        
+        var paramMap:[String:String] = [:]
+        for param in parameters {
+            let components = param.componentsSeparatedByString("=")
+            if components.count == 2 {
+                paramMap[components[0]] = components[1]
+            }
+        }
+
+        return paramMap
+    }
     /**
     * Parses Media Playlist manifests
     */
@@ -279,5 +345,27 @@ public class ManifestBuilder {
             }
         }
         return master
+    }
+}
+
+extension NSString {
+    
+    func countInstances(of stringToFind: String) -> Int {
+        var stringToSearch = self
+        var count = 0
+        repeat {
+            let foundRange = stringToSearch.rangeOfString(stringToFind, options: .DiacriticInsensitiveSearch)
+            if foundRange.location == NSNotFound { break }
+
+            stringToSearch = stringToSearch.stringByReplacingCharactersInRange(foundRange, withString: "")
+            count += 1
+            
+        } while (true)
+        
+        return count
+    }
+    
+    var unescapeQuotes:String {
+        return stringByReplacingOccurrencesOfString("\"", withString: "")
     }
 }
