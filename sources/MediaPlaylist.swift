@@ -16,6 +16,16 @@ public class MediaPlaylist {
     public var mediaSequence: Int?
     var segments = [MediaSegment]()
 
+    // Raw data
+    public var m3u8String: String = ""
+    public var m3u8Data: NSData? {
+        return m3u8String.dataUsingEncoding(NSUTF8StringEncoding)
+    }
+
+    // Advanced attributes
+    public var type: String?
+    public var language: String?
+    
     public init() {
 
     }

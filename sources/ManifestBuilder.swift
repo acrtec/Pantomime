@@ -25,10 +25,11 @@ public class ManifestBuilder {
             reader.close()
         }
         while let line = reader.readLine() {
-            if line.isEmpty {
-                // Skip empty lines
-
-            } else if line.hasPrefix("#EXT") {
+            // Skip empty lines
+            guard !line.isEmpty else { continue }
+            masterPlaylist.m3u8String.appendContentsOf(line + "\n")
+            
+            if line.hasPrefix("#EXT") {
 
                 // Tags
                 if line.hasPrefix("#EXTM3U") {
@@ -51,6 +52,16 @@ public class ManifestBuilder {
                             print("Failed to parse bandwidth on master playlist. Line = \(line)")
                         }
                     }
+                } else if line.hasPrefix("#EXT-X-MEDIA") {
+                    let mediaPlaylist = MediaPlaylist()
+                    // #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",\
+                    // DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,LANGUAGE="eng",URI="..."
+                    mediaPlaylist.language = try? line.replace("(.*)LANGUAGE=\"(.*?)\"(.*)", replacement: "$2")
+                    mediaPlaylist.type = try? line.replace("(.*)TYPE=(.*?),(.*)", replacement: "$2")
+                    mediaPlaylist.path = try? line.replace("(.*)URI=\"(.*?)\"(.*)", replacement: "$2")
+                    
+                    masterPlaylist.addPlaylist(mediaPlaylist)
+                    onMediaPlaylist?(playlist: mediaPlaylist)
                 }
 
             } else if line.hasPrefix("#") {
@@ -58,13 +69,11 @@ public class ManifestBuilder {
 
             } else {
                 // URI - must be
-                if let currentMediaPlaylistExist = currentMediaPlaylist {
-                    currentMediaPlaylistExist.path = line
-                    currentMediaPlaylistExist.masterPlaylist = masterPlaylist
-                    masterPlaylist.addPlaylist(currentMediaPlaylistExist)
-                    if let callableOnMediaPlaylist = onMediaPlaylist {
-                        callableOnMediaPlaylist(playlist: currentMediaPlaylistExist)
-                    }
+                if let playlist = currentMediaPlaylist {
+                    playlist.path = line
+                    playlist.masterPlaylist = masterPlaylist
+                    masterPlaylist.addPlaylist(playlist)
+                    onMediaPlaylist?(playlist: playlist)
                 }
             }
         }
@@ -86,10 +95,11 @@ public class ManifestBuilder {
         }
 
         while let line = reader.readLine() {
-            if line.isEmpty {
-                // Skip empty lines
-
-            } else if line.hasPrefix("#EXT") {
+            // Skip empty lines
+            guard !line.isEmpty else { continue }
+            mediaPlaylist.m3u8String.appendContentsOf(line + "\n")
+            
+            if line.hasPrefix("#EXT") {
 
                 // Tags
                 if line.hasPrefix("#EXTM3U") {

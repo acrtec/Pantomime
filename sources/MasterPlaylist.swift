@@ -12,6 +12,12 @@ public class MasterPlaylist {
     var playlists = [MediaPlaylist]()
     public var path: String?
 
+    // Raw data
+    public var m3u8String: String = ""
+    public var m3u8Data: NSData? {
+        return m3u8String.dataUsingEncoding(NSUTF8StringEncoding)
+    }
+    
     public init() {}
 
     public func addPlaylist(playlist: MediaPlaylist) {
