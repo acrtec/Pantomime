@@ -25,47 +25,126 @@ open class ManifestBuilder {
             reader.close()
         }
         while let line = reader.readLine() {
-            if line.isEmpty {
-                // Skip empty lines
-
-            } else if line.hasPrefix("#EXT") {
+            // Skip empty lines
+            guard !line.isEmpty else { continue }
+            masterPlaylist.m3u8String.append(line + "\n")
+            
+            if line.hasPrefix("#EXT") {
 
                 // Tags
                 if line.hasPrefix("#EXTM3U") {
                     // Ok Do nothing
 
                 } else if line.hasPrefix("#EXT-X-STREAM-INF") {
+                    
+                    let streamInfo = line.replacingOccurrences(of: "#EXT-X-STREAM-INF:", with: "")
+                    let scannedParameters:[String:String] = scanParameters(fromString:streamInfo, unescapeQuotes:true)
+                    
                     // #EXT-X-STREAM-INF:PROGRAM-ID=1, BANDWIDTH=200000
                     currentMediaPlaylist = MediaPlaylist()
-                    do {
-                        let programIdString = try line.replace("(.*)=(\\d+),(.*)", replacement: "$2")
-                        let bandwidthString = try line.replace("(.*),(.*)=(\\d+)(.*)", replacement: "$3")
-                        if let currentMediaPlaylistExist = currentMediaPlaylist {
-                            currentMediaPlaylistExist.programId = Int(programIdString)!
-                            currentMediaPlaylistExist.bandwidth = Int(bandwidthString)!
+                    if let currentMediaPlaylistExist = currentMediaPlaylist {
+                        if let programIdString = scannedParameters["PROGRAM-ID"],
+                            let programId = Int(programIdString) {
+                            currentMediaPlaylistExist.programId = programId
                         }
-                    } catch {
-                        print("Failed to parse program-id and bandwidth on master playlist. Line = \(line)")
+                        
+                        if let bandwidthString = scannedParameters["BANDWIDTH"],
+                            let bandwidth = Int(bandwidthString) {
+                            currentMediaPlaylistExist.bandwidth = bandwidth
+                        }
+                        
+                        if let audioTrackString = scannedParameters["AUDIO"] {
+                            currentMediaPlaylistExist.audioTrackId = audioTrackString
+                        }
                     }
-
+                } else if line.hasPrefix("#EXT-X-MEDIA") {
+                    
+                    let streamInfo = line.replacingOccurrences(of: "#EXT-X-MEDIA:", with: "")
+                    let scannedParameters:[String:String] = scanParameters(fromString:streamInfo, unescapeQuotes:true)
+                    
+                    let mediaPlaylist = MediaPlaylist()
+                    // #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",\
+                    // DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,LANGUAGE="eng",URI="..."
+                    
+                    if let languageId = scannedParameters["LANGUAGE"] {
+                        mediaPlaylist.language = languageId
+                    }
+                    
+                    if let playListType = scannedParameters["TYPE"] {
+                        mediaPlaylist.type = playListType
+                    }
+                    
+                    if let uri = scannedParameters["URI"] {
+                        mediaPlaylist.path = uri
+                    }
+                    
+                    if let groupId = scannedParameters["GROUP-ID"] {
+                        mediaPlaylist.groupId = groupId
+                    }
+                    
+                    masterPlaylist.addPlaylist(mediaPlaylist)
+                    onMediaPlaylist?(mediaPlaylist)
                 }
             } else if line.hasPrefix("#") {
                 // Comments are ignored
-
             } else {
                 // URI - must be
-                if let currentMediaPlaylistExist = currentMediaPlaylist {
-                    currentMediaPlaylistExist.path = line
-                    currentMediaPlaylistExist.masterPlaylist = masterPlaylist
-                    masterPlaylist.addPlaylist(currentMediaPlaylistExist)
-                    if let callableOnMediaPlaylist = onMediaPlaylist {
-                        callableOnMediaPlaylist(currentMediaPlaylistExist)
-                    }
+                if let playlist = currentMediaPlaylist {
+                    playlist.path = line
+                    playlist.masterPlaylist = masterPlaylist
+                    masterPlaylist.addPlaylist(playlist)
+                    onMediaPlaylist?(playlist)
                 }
             }
         }
 
         return masterPlaylist
+    }
+    
+    private func scanParameters(fromString string:String, unescapeQuotes escape:Bool = false) -> [String:String] {
+        
+        let scanner = Scanner(string: string)
+        var parameters: [String] = []
+        
+        while scanner.isAtEnd == false {
+            var scannedString: NSString?
+            var tmpScanString: NSString?
+            scanner.scanUpTo(",", into: &scannedString)
+            
+            let count = scannedString?.countInstances(of: "\"") ?? 0
+            let isInQuotes = (count % 2 != 0)
+            
+            if isInQuotes {
+                
+                // store the scanned output and increment the scan pointer...
+                scanner.scanLocation = scanner.scanLocation + 1
+                tmpScanString = scannedString
+                
+                // scan again to the next ,
+                scanner.scanUpTo(",", into: &scannedString)
+                
+                let param = String(format: "%@, %@", tmpScanString ?? "", scannedString ?? "")
+                parameters.append(escape ? param.unescapeQuotes : param)
+            }
+            else {
+                if let param = scannedString as String? {
+                    parameters.append(escape ? param.unescapeQuotes : param)
+                }
+            }
+            if scanner.scanLocation < string.characters.count - 1 {
+                scanner.scanLocation = scanner.scanLocation + 1
+            }
+        }
+        
+        var paramMap:[String:String] = [:]
+        for param in parameters {
+            let components = param.components(separatedBy: "=")
+            if components.count == 2 {
+                paramMap[components[0]] = components[1]
+            }
+        }
+        
+        return paramMap
     }
 
     /**
@@ -82,10 +161,11 @@ open class ManifestBuilder {
         }
 
         while let line = reader.readLine() {
-            if line.isEmpty {
-                // Skip empty lines
-
-            } else if line.hasPrefix("#EXT") {
+            // Skip empty lines
+            guard !line.isEmpty else { continue }
+            mediaPlaylist.m3u8String.append(line + "\n")
+            
+            if line.hasPrefix("#EXT") {
 
                 // Tags
                 if line.hasPrefix("#EXTM3U") {
@@ -265,3 +345,26 @@ open class ManifestBuilder {
         return master
     }
 }
+
+extension NSString {
+    
+    func countInstances(of stringToFind: String) -> Int {
+        var stringToSearch = self
+        var count = 0
+        repeat {
+            let foundRange = stringToSearch.range(of: stringToFind, options: .diacriticInsensitive)
+            if foundRange.location == NSNotFound { break }
+            
+            stringToSearch = stringToSearch.replacingCharacters(in: foundRange, with: "") as NSString
+            count += 1
+            
+        } while (true)
+        
+        return count
+    }
+    
+    var unescapeQuotes:String {
+        return replacingOccurrences(of: "\"", with: "")
+    }
+}
+
