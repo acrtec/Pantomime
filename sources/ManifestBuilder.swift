@@ -131,7 +131,7 @@ open class ManifestBuilder {
                     parameters.append(escape ? param.unescapeQuotes : param)
                 }
             }
-            if scanner.scanLocation < string.characters.count - 1 {
+            if scanner.scanLocation < string.count - 1 {
                 scanner.scanLocation = scanner.scanLocation + 1
             }
         }
