@@ -6,7 +6,8 @@
 import Foundation
 
 open class MediaSegment {
-    var mediaPlaylist: MediaPlaylist?
+    // Weak reference since MediaPlaylist references with the segments array
+    weak var mediaPlaylist: MediaPlaylist?
     open var duration: Float?
     open var sequence: Int = 0
     open var subrangeLength: Int?

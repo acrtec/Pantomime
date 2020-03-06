@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name         = "Pantomime"
-  s.version      = "0.1.4"
+  s.version      = "0.1.5"
   s.summary      = "Parsing of M3U8 manifest files for Swift"
 
   s.description      = <<-DESC

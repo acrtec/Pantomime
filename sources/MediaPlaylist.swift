@@ -6,7 +6,8 @@
 import Foundation
 
 open class MediaPlaylist {
-    var masterPlaylist: MasterPlaylist?
+    // Weak reference since MasterPlaylist references with the playlists array
+    weak var masterPlaylist: MasterPlaylist?
 
     open var programId: Int = 0
     public var groupId: String?
